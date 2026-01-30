@@ -1,0 +1,32 @@
+@media print {
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  .sticky {
+    position: static !important;
+  }
+
+  @page {
+    size: landscape;
+    margin: 0.5cm;
+  }
+}
