@@ -46,8 +46,8 @@ export const parseAttendanceExcel = (file) => {
         for (let i = EXCEL_CONSTANTS.DATE_ROW_START; i < Math.min(EXCEL_CONSTANTS.DATE_ROW_END, dateRow.length); i++) {
           if (dateRow[i]) {
             const date = typeof dateRow[i] === 'number' ? excelSerialToDate(dateRow[i]) : new Date(dateRow[i]);
-            if (isNaN(date.getTime())) {
-              reject(new Error(`Invalid date at column ${i}`));
+            if (isNaN(date.getTime()) || date.getFullYear() < 2000 || date.getFullYear() > 2100) {
+              reject(new Error(`Invalid date at column ${i}: ${dateRow[i]}`));
               return;
             }
             dates.push(date);

@@ -80,6 +80,10 @@ const AttendanceSheet = () => {
       const newEmployees = prevData.employees.map(emp => {
         if (emp.empId === empId) {
           const newAttendance = [...emp.attendance];
+          // Ensure array length matches dates
+          while (newAttendance.length < prevData.dates.length) {
+            newAttendance.push('');
+          }
           newAttendance[dateIndex] = value;
           const calculated = calculateSalary(emp, newAttendance);
           return { ...emp, attendance: newAttendance, ...calculated };

@@ -1,7 +1,7 @@
 import { SALARY_CONSTANTS, ATTENDANCE_CODES } from '../constants';
 
-export const calculateAttendanceSummary = (attendance) => {
-  let presentDays = 0, casualLeave = 0, weekOff = 0, paidHoliday = 0, onDuty = 0, absent = 0;
+export const calculateAttendanceSummary = (attendance, openingCL = 8) => {
+  let presentDays = 0, casualLeaveUsed = 0, weekOff = 0, paidHoliday = 0, onDuty = 0, absent = 0;
   
   attendance.forEach(status => {
     switch(status) {
@@ -9,17 +9,17 @@ export const calculateAttendanceSummary = (attendance) => {
         presentDays++;
         break;
       case ATTENDANCE_CODES.CASUAL_LEAVE:
-        casualLeave++;
+        casualLeaveUsed++;
         break;
       case ATTENDANCE_CODES.HALF_CL:
-        casualLeave += 0.5;
+        casualLeaveUsed += 0.5;
         presentDays += 0.5;
         break;
       case ATTENDANCE_CODES.HALF_PRESENT:
         presentDays += 0.5;
         break;
       case ATTENDANCE_CODES.HALF_LEAVE:
-        casualLeave += 0.5;
+        casualLeaveUsed += 0.5;
         break;
       case ATTENDANCE_CODES.WEEK_OFF:
       case ATTENDANCE_CODES.WEEK_WEEK:
@@ -40,19 +40,22 @@ export const calculateAttendanceSummary = (attendance) => {
     }
   });
   
+  const remainingCL = openingCL - casualLeaveUsed;
+  
   return {
     presentDays,
-    casualLeave,
+    casualLeave: casualLeaveUsed,
+    remainingCL,
     weekOff,
     paidHoliday,
     onDuty,
     lossOfPay: absent,
-    payableDays: presentDays + casualLeave + weekOff + paidHoliday + onDuty
+    payableDays: presentDays + casualLeaveUsed + weekOff + paidHoliday + onDuty
   };
 };
 
 export const calculateSalary = (employee, attendance) => {
-  const summary = calculateAttendanceSummary(attendance);
+  const summary = calculateAttendanceSummary(attendance, employee.openingCL || 8);
   const earnedGross = (employee.gross * summary.payableDays) / SALARY_CONSTANTS.DAYS_IN_MONTH;
   
   const basic = earnedGross * SALARY_CONSTANTS.BASIC_PERCENTAGE;

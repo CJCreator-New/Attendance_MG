@@ -7,9 +7,25 @@ export const useDataStore = create((set, get) => ({
   employees: [],
   leaveApplications: [],
   salaryRecords: [],
+  selectedMonth: null,
+  selectedYear: null,
   
   initializeData: (data) => {
-    set({ employees: data.employees || [] });
+    const uniqueIds = new Set();
+    const validEmployees = (data.employees || []).filter(emp => {
+      if (uniqueIds.has(emp.empId)) {
+        console.warn(`Duplicate employee ID: ${emp.empId}`);
+        return false;
+      }
+      uniqueIds.add(emp.empId);
+      return true;
+    });
+    
+    set({ 
+      employees: validEmployees,
+      selectedMonth: data.month,
+      selectedYear: data.year
+    });
     get().syncAllModules();
   },
   
@@ -24,9 +40,17 @@ export const useDataStore = create((set, get) => ({
         }
         return emp;
       });
-      return { employees };
+      
+      const salaryRecords = employees.map(emp => ({
+        empId: emp.empId,
+        month: state.selectedMonth || new Date().toLocaleString('default', { month: 'long' }),
+        year: state.selectedYear || new Date().getFullYear(),
+        ...calculateSalary(emp, emp.attendance)
+      }));
+      
+      return { employees, salaryRecords };
     });
-    get().syncAllModules();
+    get().persistData();
   },
   
   bulkUpdateAttendance: (employeeIds, dateIndices, status) => {
@@ -40,9 +64,17 @@ export const useDataStore = create((set, get) => ({
         }
         return emp;
       });
-      return { employees };
+      
+      const salaryRecords = employees.map(emp => ({
+        empId: emp.empId,
+        month: state.selectedMonth || new Date().toLocaleString('default', { month: 'long' }),
+        year: state.selectedYear || new Date().getFullYear(),
+        ...calculateSalary(emp, emp.attendance)
+      }));
+      
+      return { employees, salaryRecords };
     });
-    get().syncAllModules();
+    get().persistData();
   },
   
   syncLeaveBalances: () => {
@@ -56,11 +88,11 @@ export const useDataStore = create((set, get) => ({
   },
   
   syncSalaryRecords: () => {
-    const { employees } = get();
+    const { employees, selectedMonth, selectedYear } = get();
     const salaryRecords = employees.map(emp => ({
       empId: emp.empId,
-      month: new Date().toLocaleString('default', { month: 'long' }),
-      year: new Date().getFullYear(),
+      month: selectedMonth || new Date().toLocaleString('default', { month: 'long' }),
+      year: selectedYear || new Date().getFullYear(),
       ...calculateSalary(emp, emp.attendance)
     }));
     set({ salaryRecords });

@@ -24,14 +24,19 @@ export const saveToLocalStorage = (data) => {
   try {
     const compressed = compressData(data);
     const size = compressed.length;
+    
+    // Check BEFORE writing
+    if (size > STORAGE_CONSTANTS.MAX_SIZE) {
+      throw new Error('Data size exceeds 5MB limit. Please export to Excel and clear old data.');
+    }
+    
     const storageInfo = getStorageInfo();
+    if (storageInfo.available < size) {
+      throw new Error('Insufficient storage space. Please export your data and clear old records.');
+    }
     
     if (storageInfo.percentage > UI_CONSTANTS.STORAGE_WARNING_THRESHOLD) {
       console.warn(`Storage usage at ${storageInfo.percentage.toFixed(1)}%. Consider exporting data.`);
-    }
-    
-    if (size > STORAGE_CONSTANTS.MAX_SIZE) {
-      throw new Error('Data size exceeds 5MB limit. Please export to Excel and clear old data.');
     }
     
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE_DATA, compressed);
