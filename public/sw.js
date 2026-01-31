@@ -6,7 +6,22 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-  event.respondWith(caches.match(event.request).then(response => response || fetch(event.request)));
+  // Prevent SSRF by only caching same-origin requests
+  const url = new URL(event.request.url);
+  
+  // Only handle GET requests for same-origin
+  if (url.origin !== self.location.origin || event.request.method !== 'GET') {
+    return;
+  }
+  
+  // Whitelist allowed protocols
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    return;
+  }
+  
+  event.respondWith(
+    caches.match(event.request).then(response => response || fetch(event.request))
+  );
 });
 
 self.addEventListener('activate', event => {

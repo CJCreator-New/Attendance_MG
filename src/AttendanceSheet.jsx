@@ -5,10 +5,12 @@ import { IndividualView } from './features/attendance/IndividualView';
 import { LeaveAnalytics } from './features/leave/LeaveAnalytics';
 import { parseAttendanceExcel } from './utils/excelParser';
 import { exportToExcel } from './utils/excelExport';
-import { saveToLocalStorage, loadFromLocalStorage } from './utils/storage';
+import { saveToAppwrite, loadFromAppwrite } from './utils/storageAppwrite';
 import { sortEmployees } from './utils/sorting';
 import { validateAttendanceUpdate } from './utils/validation';
 import { calculateSalary } from './utils/salaryCalculator';
+import { checkBrowserCompatibility } from './utils/browserCheck';
+import { getDaysInMonth } from './utils/dateUtils';
 import { Toast, useToast } from './components/Toast';
 import { EmployeeModal } from './components/EmployeeModal';
 import { AttendanceOnlyRow } from './components/AttendanceOnlyRow';
@@ -19,8 +21,11 @@ import { MobileAttendanceView } from './components/MobileAttendanceView';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { EmptyState } from './components/EmptyState';
+import { LiveIndicator } from './components/LiveIndicator';
 import { SALARY_CONSTANTS, ATTENDANCE_CODES } from './constants';
 import { LIMITS, UI_CONSTANTS } from './constants/uiConstants';
+import { useDebouncedValue } from './hooks/useDebounce';
+import { useRealtimeAttendance } from './hooks/useRealtimeAttendance';
 import './print.css';
 
 const AttendanceSheet = () => {
@@ -28,6 +33,7 @@ const AttendanceSheet = () => {
   const [editMode, setEditMode] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, UI_CONSTANTS.DEBOUNCE_DELAY_MS);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
@@ -36,38 +42,82 @@ const AttendanceSheet = () => {
   const [viewMode, setViewMode] = useState('table'); // 'table', 'calendar', 'individual', 'analytics'
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  const [bulkUpdateModal, setBulkUpdateModal] = useState({ isOpen: false, dayIndex: null });
+  const [showSummaryColumns, setShowSummaryColumns] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartCell, setDragStartCell] = useState(null);
+  const [dragValue, setDragValue] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [browserSupported, setBrowserSupported] = useState(true);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(true);
+  const [lastRealtimeUpdate, setLastRealtimeUpdate] = useState(null);
   const fileInputRef = useRef(null);
   const { toasts, showToast } = useToast();
 
   useEffect(() => {
-    const savedData = loadFromLocalStorage();
-    if (savedData && savedData.employees) {
-      setData(savedData);
-    } else {
-      // Initialize with empty structure
-      const currentDate = new Date();
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      
-      const dates = [];
-      const days = [];
-      for (let i = 1; i <= daysInMonth; i++) {
-        const date = new Date(year, month, i);
-        dates.push(date.toISOString());
-        days.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
-      }
-      
-      setData({
-        month: currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-        employees: [],
-        dates,
-        days
-      });
+    const compat = checkBrowserCompatibility();
+    if (!compat.isSupported) {
+      setBrowserSupported(false);
+      showToast(compat.message, 'error');
     }
   }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const savedData = await loadFromAppwrite();
+        if (savedData && savedData.employees) {
+          setData(savedData);
+        } else {
+          // Initialize with empty structure
+          const currentDate = new Date();
+          const year = currentDate.getFullYear();
+          const month = currentDate.getMonth();
+          const daysInMonth = getDaysInMonth(year, month);
+          
+          const dates = [];
+          const days = [];
+          for (let i = 1; i <= daysInMonth; i++) {
+            const date = new Date(year, month, i);
+            dates.push(date.toISOString());
+            days.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          }
+          
+          setData({
+            month: currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            employees: [],
+            dates,
+            days
+          });
+        }
+      } catch (error) {
+        showToast('Failed to load data: ' + error.message, 'error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Real-time updates
+  useRealtimeAttendance((payload) => {
+    setLastRealtimeUpdate(new Date().toISOString());
+    setIsRealtimeConnected(true);
+    
+    if (payload.events.includes('delete')) {
+      setData(prev => ({
+        ...prev,
+        employees: prev.employees.filter(e => e.empId !== payload.employeeId)
+      }));
+      showToast('Employee removed by another user', 'info');
+    } else {
+      loadFromAppwrite().then(savedData => {
+        if (savedData) setData(savedData);
+      });
+    }
+  });
 
   const updateAttendance = useCallback((empId, dateIndex, value) => {
     const validation = validateAttendanceUpdate(empId, dateIndex, value, data.dates);
@@ -76,11 +126,11 @@ const AttendanceSheet = () => {
       return;
     }
 
+    // Optimistic update
     setData(prevData => {
       const newEmployees = prevData.employees.map(emp => {
         if (emp.empId === empId) {
           const newAttendance = [...emp.attendance];
-          // Ensure array length matches dates
           while (newAttendance.length < prevData.dates.length) {
             newAttendance.push('');
           }
@@ -96,13 +146,13 @@ const AttendanceSheet = () => {
     });
   }, [data?.dates, showToast]);
 
-  const toggleEdit = (empId, dateIndex) => {
+  const toggleEdit = useCallback((empId, dateIndex) => {
     const key = `${empId}-${dateIndex}`;
     setEditMode(prev => ({
       ...prev,
       [key]: !prev[key]
     }));
-  };
+  }, []);
 
   const getCellColor = useCallback((status) => {
     const colors = {
@@ -137,47 +187,64 @@ const AttendanceSheet = () => {
     return num;
   }, []);
 
-  const saveChanges = () => {
+  const saveChanges = useCallback(async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      const result = saveToLocalStorage(data);
+    try {
+      const result = await saveToAppwrite(data);
       if (result.success) {
         showToast('Changes saved successfully!', 'success');
         setHasChanges(false);
       } else {
         showToast(result.error || 'Failed to save changes', 'error');
       }
+    } catch (error) {
+      showToast('Failed to save: ' + error.message, 'error');
+    } finally {
       setIsSaving(false);
-    }, 300);
-  };
+    }
+  }, [data, showToast]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setIsLoading(true);
-    try {
-      const parsedData = await parseAttendanceExcel(file);
-      setData(parsedData);
-      setHasChanges(false);
-      showToast('Excel file loaded successfully!', 'success');
-    } catch (error) {
-      showToast('Error reading Excel file: ' + error.message, 'error');
-    } finally {
-      setIsLoading(false);
+    const maxRetries = UI_CONSTANTS.MAX_RETRY_ATTEMPTS;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+      try {
+        const parsedData = await parseAttendanceExcel(file);
+        setData(parsedData);
+        setHasChanges(false);
+        showToast('Excel file loaded successfully!', 'success');
+        break;
+      } catch (error) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          const errorMsg = error.message.includes('corrupted') 
+            ? 'File appears to be corrupted. Please try re-downloading or re-creating the file.'
+            : `Failed to load file: ${error.message}`;
+          showToast(errorMsg, 'error');
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+        }
+      }
     }
+    
+    setIsLoading(false);
   };
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     try {
       exportToExcel(data);
       showToast('Excel file exported successfully!', 'success');
     } catch (error) {
       showToast('Failed to export Excel file', 'error');
     }
-  };
+  }, [data, showToast]);
 
-  const addEmployee = (empData) => {
+  const addEmployee = useCallback((empData) => {
     if (data.employees.length >= LIMITS.MAX_EMPLOYEES) {
       showToast(`Maximum limit of ${LIMITS.MAX_EMPLOYEES} employees reached`, 'error');
       return;
@@ -220,7 +287,7 @@ const AttendanceSheet = () => {
     setShowEmployeeModal(false);
     setHasChanges(true);
     showToast('Employee added successfully', 'success');
-  };
+  }, [data, showToast]);
 
   const bulkAddEmployees = (employeesData) => {
     const existingIds = new Set(data.employees.map(e => e.empId));
@@ -277,13 +344,21 @@ const AttendanceSheet = () => {
   };
 
   const bulkDeleteEmployees = (empIds) => {
-    const newEmployees = data.employees.filter(e => !empIds.includes(e.empId));
-    setData({ ...data, employees: newEmployees });
-    setHasChanges(true);
-    showToast(`${empIds.length} employees deleted successfully`, 'success');
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Multiple Employees',
+      message: `Are you sure you want to delete ${empIds.length} employee(s)? This action cannot be undone.`,
+      onConfirm: () => {
+        const newEmployees = data.employees.filter(e => !empIds.includes(e.empId));
+        setData({ ...data, employees: newEmployees });
+        setHasChanges(true);
+        showToast(`${empIds.length} employees deleted successfully`, 'success');
+        setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null });
+      }
+    });
   };
 
-  const updateEmployee = (empData) => {
+  const updateEmployee = useCallback((empData) => {
     const newEmployees = data.employees.map(emp => {
       if (emp.empId === empData.empId) {
         const calculated = calculateSalary({ ...emp, ...empData }, emp.attendance);
@@ -297,9 +372,9 @@ const AttendanceSheet = () => {
     setEditingEmployee(null);
     setHasChanges(true);
     showToast('Employee updated successfully', 'success');
-  };
+  }, [data, showToast]);
 
-  const deleteEmployee = (empId) => {
+  const deleteEmployee = useCallback((empId) => {
     setConfirmDialog({
       isOpen: true,
       title: 'Delete Employee',
@@ -312,7 +387,20 @@ const AttendanceSheet = () => {
         setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null });
       }
     });
-  };
+  }, [data, showToast]);
+
+  const handleBulkUpdateDay = useCallback((dateIndex, status) => {
+    const newEmployees = data.employees.map(emp => {
+      const newAttendance = [...emp.attendance];
+      newAttendance[dateIndex] = status;
+      const calculated = calculateSalary(emp, newAttendance);
+      return { ...emp, attendance: newAttendance, ...calculated };
+    });
+    setData({ ...data, employees: newEmployees });
+    setHasChanges(true);
+    showToast(`All employees marked as ${status} for day ${dateIndex + 1}`, 'success');
+    setBulkUpdateModal({ isOpen: false, dayIndex: null });
+  }, [data, showToast]);
 
   const handleBulkUpdate = useCallback((dateIndices, status) => {
     const newEmployees = data.employees.map(emp => {
@@ -332,10 +420,10 @@ const AttendanceSheet = () => {
   const filteredEmployees = useMemo(() => {
     if (!data?.employees) return [];
     return data.employees.filter(emp => 
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.empId.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      emp.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      emp.empId.toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase())
     );
-  }, [data?.employees, searchTerm]);
+  }, [data?.employees, debouncedSearchTerm]);
 
   const sortedEmployees = useMemo(() => 
     sortEmployees(filteredEmployees, sortBy, sortOrder),
@@ -351,30 +439,75 @@ const AttendanceSheet = () => {
     }
   }, [sortBy, sortOrder]);
 
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     window.print();
-  };
+  }, []);
 
   const handleViewEmployee = useCallback((employee) => {
     setSelectedEmployee(employee);
     setViewMode('individual');
   }, []);
 
+  const handleDragStart = useCallback((empId, dateIndex, value) => {
+    setIsDragging(true);
+    setDragStartCell({ empId, dateIndex });
+    setDragValue(value);
+  }, []);
+
+  const handleDragEnter = useCallback((empId, dateIndex) => {
+    if (isDragging && dragValue !== null) {
+      updateAttendance(empId, dateIndex, dragValue);
+    }
+  }, [isDragging, dragValue, updateAttendance]);
+
+  const handleDragEnd = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+      setDragStartCell(null);
+      setDragValue(null);
+    }
+  }, [isDragging]);
+
+  const hasChangesRef = useRef(hasChanges);
+  const saveChangesRef = useRef(saveChanges);
+  const handleExportRef = useRef(handleExport);
+  
+  useEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
+  
+  useEffect(() => {
+    saveChangesRef.current = saveChanges;
+  }, [saveChanges]);
+  
+  useEffect(() => {
+    handleExportRef.current = handleExport;
+  }, [handleExport]);
+
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 's') {
           e.preventDefault();
-          if (hasChanges) saveChanges();
+          if (hasChangesRef.current) saveChangesRef.current();
         } else if (e.key === 'e') {
           e.preventDefault();
-          handleExport();
+          handleExportRef.current();
         }
       }
     };
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        handleDragEnd();
+      }
+    };
     window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [hasChanges, data]);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDragging, handleDragEnd]);
 
   if (!data || !data.employees || !data.dates) {
     return (
@@ -431,7 +564,12 @@ const AttendanceSheet = () => {
         fileInputRef={fileInputRef}
       />
 
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex gap-2 no-print">
+      <div className="fixed bottom-4 right-4 z-50 no-print">
+        <LiveIndicator isConnected={isRealtimeConnected} lastUpdate={lastRealtimeUpdate} />
+      </div>
+
+      <div className="bg-white border-b border-gray-200 px-6 py-3 flex gap-2 justify-between no-print">
+        <div className="flex gap-2">
         <button
           onClick={() => setViewMode('table')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
@@ -456,6 +594,16 @@ const AttendanceSheet = () => {
         >
           <span className="flex items-center gap-2"><BarChart3 className="w-4 h-4" aria-hidden="true" /> Leave Analytics</span>
         </button>
+        </div>
+        {viewMode === 'table' && (
+          <button
+            onClick={() => setShowSummaryColumns(!showSummaryColumns)}
+            className="px-4 py-2 rounded-lg font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
+            aria-label="Toggle summary columns"
+          >
+            {showSummaryColumns ? 'Hide Summary' : 'Show Summary'}
+          </button>
+        )}
       </div>
 
       {viewMode === 'calendar' && (
@@ -494,7 +642,7 @@ const AttendanceSheet = () => {
       <div className="relative overflow-auto hidden md:block">
         <div className="scroll-shadow-left" />
         <div className="scroll-shadow-right" />
-        <table className="attendance-table w-full border-collapse bg-white" style={{ minWidth: '2000px' }} role="grid" aria-label="Employee attendance sheet">
+        <table className="attendance-table w-full border-collapse bg-white" style={{ minWidth: showSummaryColumns ? '2000px' : '1200px' }} role="grid" aria-label="Employee attendance sheet">
           <thead className="sticky top-[145px] z-40 bg-blue-600 text-white">
             <tr>
               <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-left" rowSpan={2}>
@@ -512,19 +660,27 @@ const AttendanceSheet = () => {
                   Name <ArrowUpDown className="w-3 h-3" aria-hidden="true" />
                 </button>
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-right" rowSpan={2}>
-                <button onClick={() => handleSort('gross')} className="flex items-center gap-1" aria-label="Sort by gross salary">
-                  Gross <ArrowUpDown className="w-3 h-3" aria-hidden="true" />
-                </button>
-              </th>
-              <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-center" colSpan={7}>Attendance Summary</th>
+              {showSummaryColumns && (
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-center" colSpan={7}>Attendance Summary</th>
+              )}
               {data.dates.map((date, idx) => (
-                <th key={idx} className="border border-gray-300 px-2 py-2 text-xs font-semibold text-center min-w-[50px]">
-                  {new Date(date).getDate()}
+                <th key={idx} className="border border-gray-300 px-2 py-2 text-xs font-semibold text-center w-12 group relative">
+                  <div className="flex flex-col items-center">
+                    <span>{new Date(date).getDate()}</span>
+                    <button
+                      onClick={() => setBulkUpdateModal({ isOpen: true, dayIndex: idx })}
+                      className="opacity-0 group-hover:opacity-100 text-[10px] text-blue-600 hover:text-blue-800 mt-1"
+                      title="Bulk update this day"
+                    >
+                      Bulk
+                    </button>
+                  </div>
                 </th>
               ))}
             </tr>
             <tr>
+              {showSummaryColumns && (
+                <>
               <th className="border border-gray-300 px-2 py-1 text-xs font-semibold">Present</th>
               <th className="border border-gray-300 px-2 py-1 text-xs font-semibold">PH</th>
               <th className="border border-gray-300 px-2 py-1 text-xs font-semibold">WO</th>
@@ -532,6 +688,8 @@ const AttendanceSheet = () => {
               <th className="border border-gray-300 px-2 py-1 text-xs font-semibold">CL</th>
               <th className="border border-gray-300 px-2 py-1 text-xs font-semibold">LOP</th>
               <th className="border border-gray-300 px-2 py-1 text-xs font-semibold">Payable</th>
+                </>
+              )}
               {data.days.map((day, idx) => (
                 <th key={idx} className="border border-gray-300 px-2 py-1 text-xs font-semibold">
                   {day}
@@ -561,11 +719,16 @@ const AttendanceSheet = () => {
                   formatNumber={formatNumber}
                   getCellColor={getCellColor}
                   editMode={editMode}
+                  showSummaryColumns={showSummaryColumns}
+                  isDragging={isDragging}
                   onEdit={(emp) => { setEditingEmployee(emp); setShowEmployeeModal(true); }}
                   onDelete={deleteEmployee}
                   onToggleEdit={toggleEdit}
                   onUpdateAttendance={updateAttendance}
                   onViewEmployee={() => handleViewEmployee(employee)}
+                  onDragStart={handleDragStart}
+                  onDragEnter={handleDragEnter}
+                  onDragEnd={handleDragEnd}
                 />
               ))
             )}
@@ -605,6 +768,32 @@ const AttendanceSheet = () => {
         cancelText="Cancel"
         variant="danger"
       />
+
+      {bulkUpdateModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Bulk Update Day {bulkUpdateModal.dayIndex + 1}</h3>
+            <p className="text-gray-600 mb-4">Select attendance status for all employees:</p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {Object.entries(ATTENDANCE_CODES).map(([code, label]) => (
+                <button
+                  key={code}
+                  onClick={() => handleBulkUpdateDay(bulkUpdateModal.dayIndex, code)}
+                  className={`px-3 py-2 rounded text-sm font-medium ${getCellColor(code)} border border-gray-300 hover:shadow-md transition-shadow`}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setBulkUpdateModal({ isOpen: false, dayIndex: null })}
+              className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
     </ErrorBoundary>
   );

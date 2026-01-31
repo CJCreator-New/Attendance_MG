@@ -3,6 +3,21 @@ import PropTypes from 'prop-types';
 import { AlertTriangle, X } from 'lucide-react';
 
 export const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Confirm', cancelText = 'Cancel', variant = 'danger' }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onCancel();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onCancel]);
+
   if (!isOpen) return null;
 
   const variantStyles = {

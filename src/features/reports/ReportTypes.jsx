@@ -1,67 +1,119 @@
 import { motion } from 'framer-motion';
 import { FileText, Download, Eye, Calendar, Users, DollarSign, Umbrella, TrendingUp } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export const ReportTypes = ({ employees, month, year }) => {
   const showToast = useToastStore(state => state.addToast);
 
-  const generateReport = (type) => {
-    let data = [];
+  const generateReport = async (type) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Report');
     let filename = '';
 
-    switch(type) {
-      case 'attendance':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Present': e.presentDays || 0,
-          'Absent': e.lossOfPay || 0,
-          'Leave': e.casualLeave || 0,
-          'Week Off': e.weekOff || 0,
-          'Payable Days': e.payableDays || 0
-        }));
-        filename = `Attendance_Report_${month}_${year}`;
-        break;
-      case 'salary':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Gross': e.gross,
-          'Earnings': e.totalEarnings || 0,
-          'Deductions': e.totalDeduction || 0,
-          'Net Salary': e.netSalary || 0
-        }));
-        filename = `Salary_Report_${month}_${year}`;
-        break;
-      case 'leave':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Opening CL': e.openingCL || 8,
-          'Used CL': e.casualLeave || 0,
-          'Balance': (e.openingCL || 8) - (e.casualLeave || 0)
-        }));
-        filename = `Leave_Report_${month}_${year}`;
-        break;
-      case 'summary':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Department': e.department || 'General',
-          'Attendance': `${e.presentDays || 0}/${e.payableDays || 0}`,
-          'Net Salary': e.netSalary || 0
-        }));
-        filename = `Summary_Report_${month}_${year}`;
-        break;
+    if (type === 'attendance') {
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Present', key: 'present', width: 10 },
+        { header: 'Absent', key: 'absent', width: 10 },
+        { header: 'Leave', key: 'leave', width: 10 },
+        { header: 'Week Off', key: 'weekOff', width: 12 },
+        { header: 'Payable Days', key: 'payableDays', width: 14 }
+      ];
+      employees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          present: e.presentDays || 0,
+          absent: e.lossOfPay || 0,
+          leave: e.casualLeave || 0,
+          weekOff: e.weekOff || 0,
+          payableDays: e.payableDays || 0
+        });
+      });
+      filename = `Attendance_Report_${month}_${year}`;
+    } else if (type === 'salary') {
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Gross', key: 'gross', width: 15 },
+        { header: 'Earnings', key: 'earnings', width: 15 },
+        { header: 'Deductions', key: 'deductions', width: 15 },
+        { header: 'Net Salary', key: 'netSalary', width: 15 }
+      ];
+      employees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          gross: e.gross,
+          earnings: e.totalEarnings || 0,
+          deductions: e.totalDeduction || 0,
+          netSalary: e.netSalary || 0
+        });
+      });
+      filename = `Salary_Report_${month}_${year}`;
+    } else if (type === 'leave') {
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Opening CL', key: 'openingCL', width: 12 },
+        { header: 'Used CL', key: 'usedCL', width: 12 },
+        { header: 'Balance', key: 'balance', width: 12 }
+      ];
+      employees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          openingCL: e.openingCL || 8,
+          usedCL: e.casualLeave || 0,
+          balance: (e.openingCL || 8) - (e.casualLeave || 0)
+        });
+      });
+      filename = `Leave_Report_${month}_${year}`;
+    } else if (type === 'summary') {
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Department', key: 'department', width: 15 },
+        { header: 'Attendance', key: 'attendance', width: 15 },
+        { header: 'Net Salary', key: 'netSalary', width: 15 }
+      ];
+      employees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          department: e.department || 'General',
+          attendance: `${e.presentDays || 0}/${e.payableDays || 0}`,
+          netSalary: e.netSalary || 0
+        });
+      });
+      filename = `Summary_Report_${month}_${year}`;
+    } else {
+      showToast('Invalid report type', 'error');
+      return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Report');
-    XLSX.writeFile(wb, `${filename}.xlsx`);
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast('Report generated', 'success');
   };
 
@@ -75,15 +127,24 @@ export const ReportTypes = ({ employees, month, year }) => {
     let tableData = [];
     let headers = [];
 
-    switch(type) {
-      case 'attendance':
+    // Use object lookup instead of switch
+    const pdfGenerators = {
+      attendance: () => {
         headers = ['Emp ID', 'Name', 'Present', 'Absent', 'Leave', 'Payable'];
         tableData = employees.map(e => [e.empId, e.name, e.presentDays || 0, e.lossOfPay || 0, e.casualLeave || 0, e.payableDays || 0]);
-        break;
-      case 'salary':
+      },
+      salary: () => {
         headers = ['Emp ID', 'Name', 'Gross', 'Earnings', 'Deductions', 'Net'];
         tableData = employees.map(e => [e.empId, e.name, e.gross, e.totalEarnings || 0, e.totalDeduction || 0, e.netSalary || 0]);
-        break;
+      }
+    };
+
+    const generator = pdfGenerators[type];
+    if (generator) {
+      generator();
+    } else {
+      showToast('Invalid PDF type', 'error');
+      return;
     }
 
     doc.autoTable({

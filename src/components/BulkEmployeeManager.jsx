@@ -7,6 +7,22 @@ export const BulkEmployeeManager = ({ employees, onBulkAdd, onBulkDelete }) => {
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [bulkAddData, setBulkAddData] = useState('');
 
+  React.useEffect(() => {
+    if (!showModal) return;
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowModal(false);
+        setMode(null);
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showModal]);
+
   const handleBulkAdd = () => {
     const lines = bulkAddData.trim().split('\n').filter(l => l.trim());
     const newEmployees = lines.map((line, idx) => {

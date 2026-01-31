@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Settings, Calendar, Mail, Download, BarChart3, Layout } from 'lucide-react';
-import { loadFromLocalStorage } from '../../utils/storage';
+import { FileText, Settings, Calendar, Mail, Download, BarChart3, Layout, Loader2 } from 'lucide-react';
+import { EmployeeService } from '../../services/employeeService';
+import { AttendanceService } from '../../services/attendanceService';
+import { MonthService } from '../../services/monthService';
+import { useToastStore } from '../../store/toastStore';
 import { ReportTypes } from './ReportTypes';
 import { CustomReportBuilder } from './CustomReportBuilder';
 import { ScheduledReports } from './ScheduledReports';
@@ -14,11 +17,33 @@ export const AdvancedReporting = () => {
   const [employees, setEmployees] = useState([]);
   const [month, setMonth] = useState('January');
   const [year, setYear] = useState(2026);
+  const [isLoading, setIsLoading] = useState(true);
+  const { addToast } = useToastStore();
 
   useEffect(() => {
-    const data = loadFromLocalStorage();
-    if (data?.employees) setEmployees(data.employees);
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [employeesData, activeMonth] = await Promise.all([
+        EmployeeService.getAllEmployees(),
+        MonthService.getActiveMonth()
+      ]);
+      
+      setEmployees(employeesData);
+      if (activeMonth) {
+        setMonth(activeMonth.month);
+        setYear(activeMonth.year);
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      addToast('Failed to load report data', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const tabs = [
     { id: 'types', label: 'Report Types', icon: FileText },
@@ -28,6 +53,14 @@ export const AdvancedReporting = () => {
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'export', label: 'Export Center', icon: Download }
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 p-6">

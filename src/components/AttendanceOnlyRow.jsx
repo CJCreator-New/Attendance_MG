@@ -1,13 +1,13 @@
 import { Edit2, Trash2, Eye } from 'lucide-react';
+import { memo } from 'react';
 import PropTypes from 'prop-types';
-import { ATTENDANCE_CODES } from '../constants';
 import DOMPurify from 'dompurify';
 
 const sanitizeName = (name) => {
   return DOMPurify.sanitize(name, { ALLOWED_TAGS: [] });
 };
 
-export const AttendanceOnlyRow = ({
+const AttendanceOnlyRowComponent = ({
   employee,
   formatNumber,
   getCellColor,
@@ -16,16 +16,22 @@ export const AttendanceOnlyRow = ({
   onDelete,
   onToggleEdit,
   onUpdateAttendance,
-  onViewEmployee
+  onViewEmployee,
+  showSummaryColumns = true,
+  isDragging = false,
+  onDragStart,
+  onDragEnter,
+  onDragEnd
 }) => {
   return (
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
       <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm">{employee.sno}</td>
       <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-mono">{employee.empId}</td>
       <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium">{sanitizeName(employee.name)}</td>
-      <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-right">₹{employee.gross?.toLocaleString('en-IN')}</td>
       
       {/* Attendance Summary */}
+      {showSummaryColumns && (
+        <>
       <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm text-center">{formatNumber(employee.presentDays)}</td>
       <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm text-center">{formatNumber(employee.paidHoliday)}</td>
       <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm text-center">{formatNumber(employee.weekOff)}</td>
@@ -33,6 +39,8 @@ export const AttendanceOnlyRow = ({
       <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm text-center">{formatNumber(employee.casualLeave)}</td>
       <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm text-center">{formatNumber(employee.lossOfPay)}</td>
       <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-sm text-center font-semibold">{formatNumber(employee.payableDays)}</td>
+        </>
+      )}
 
       {/* Daily Attendance */}
       {employee.attendance.map((status, idx) => {
@@ -42,8 +50,8 @@ export const AttendanceOnlyRow = ({
         return (
           <td
             key={idx}
-            className={`border border-gray-300 dark:border-gray-600 px-2 py-2 text-xs text-center cursor-pointer ${getCellColor(status)}`}
-            onClick={() => onToggleEdit(employee.empId, idx)}
+            className={`border border-gray-300 dark:border-gray-600 px-1 py-1 text-xs text-center w-12 ${getCellColor(status)} ${isDragging ? 'select-none' : ''}`}
+            style={{ userSelect: isDragging ? 'none' : 'auto' }}
           >
             {isEditing ? (
               <select
@@ -54,25 +62,47 @@ export const AttendanceOnlyRow = ({
                 }}
                 onBlur={() => onToggleEdit(employee.empId, idx)}
                 autoFocus
-                className="w-full bg-transparent border-0 focus:ring-0 text-xs"
+                className="w-full h-full bg-white border border-blue-500 focus:ring-2 focus:ring-blue-300 text-xs px-1 py-1 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
               >
                 <option value="">-</option>
-                <option value={ATTENDANCE_CODES.PRESENT}>P</option>
-                <option value={ATTENDANCE_CODES.ABSENT}>A</option>
-                <option value={ATTENDANCE_CODES.CASUAL_LEAVE}>CL</option>
-                <option value={ATTENDANCE_CODES.HALF_CL}>HCL</option>
-                <option value={ATTENDANCE_CODES.HALF_PRESENT}>HP</option>
-                <option value={ATTENDANCE_CODES.HALF_LEAVE}>HL</option>
-                <option value={ATTENDANCE_CODES.WEEK_OFF}>WO</option>
-                <option value={ATTENDANCE_CODES.WEEK_WEEK}>WW</option>
-                <option value={ATTENDANCE_CODES.PUBLIC_HOLIDAY}>PH</option>
-                <option value={ATTENDANCE_CODES.PAID_HOLIDAY}>pH</option>
-                <option value={ATTENDANCE_CODES.PAID_HOLIDAY_WEEK}>PHW</option>
-                <option value={ATTENDANCE_CODES.ON_DUTY}>OD</option>
-                <option value={ATTENDANCE_CODES.WORK_FROM_HOME}>WFH</option>
+                <option value="P">P</option>
+                <option value="A">A</option>
+                <option value="CL">CL</option>
+                <option value="HCL">HCL</option>
+                <option value="HP">HP</option>
+                <option value="HL">HL</option>
+                <option value="WO">WO</option>
+                <option value="WW">WW</option>
+                <option value="PH">PH</option>
+                <option value="pH">pH</option>
+                <option value="PHW">PHW</option>
+                <option value="OD">OD</option>
+                <option value="WFH">WFH</option>
               </select>
             ) : (
-              status || '-'
+              <div 
+                className="cursor-pointer hover:bg-blue-100 w-full h-full py-1 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isDragging && onToggleEdit) {
+                    onToggleEdit(employee.empId, idx);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (e.button === 0 && onDragStart) {
+                    onDragStart(employee.empId, idx, status);
+                  }
+                }}
+                onMouseEnter={() => {
+                  if (isDragging && onDragEnter) {
+                    onDragEnter(employee.empId, idx);
+                  }
+                }}
+                style={{ minHeight: '24px', userSelect: 'none' }}
+              >
+                {status || '-'}
+              </div>
             )}
           </td>
         );
@@ -81,7 +111,7 @@ export const AttendanceOnlyRow = ({
   );
 };
 
-AttendanceOnlyRow.propTypes = {
+AttendanceOnlyRowComponent.propTypes = {
   employee: PropTypes.object.isRequired,
   formatNumber: PropTypes.func.isRequired,
   getCellColor: PropTypes.func.isRequired,
@@ -90,5 +120,20 @@ AttendanceOnlyRow.propTypes = {
   onDelete: PropTypes.func,
   onToggleEdit: PropTypes.func.isRequired,
   onUpdateAttendance: PropTypes.func.isRequired,
-  onViewEmployee: PropTypes.func
+  onViewEmployee: PropTypes.func,
+  showSummaryColumns: PropTypes.bool,
+  isDragging: PropTypes.bool,
+  onDragStart: PropTypes.func,
+  onDragEnter: PropTypes.func,
+  onDragEnd: PropTypes.func
 };
+
+export const AttendanceOnlyRow = memo(AttendanceOnlyRowComponent, (prev, next) => {
+  return (
+    prev.employee.empId === next.employee.empId &&
+    prev.employee.attendance === next.employee.attendance &&
+    prev.showSummaryColumns === next.showSummaryColumns &&
+    prev.isDragging === next.isDragging &&
+    JSON.stringify(prev.editMode) === JSON.stringify(next.editMode)
+  );
+});

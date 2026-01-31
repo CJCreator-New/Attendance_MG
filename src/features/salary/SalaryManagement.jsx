@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Calculator, FileText, TrendingUp, FileCheck, Download, Settings } from 'lucide-react';
-import { loadFromLocalStorage } from '../../utils/storage';
+import { Calculator, FileText, TrendingUp, FileCheck, Download, Settings, Loader2 } from 'lucide-react';
+import { EmployeeService } from '../../services/employeeService';
+import { AttendanceService } from '../../services/attendanceService';
+import { SalaryConfigService } from '../../services/salaryConfigService';
+import { MonthService } from '../../services/monthService';
+import { calculateSalary } from '../../utils/salaryCalculator';
 import { SalaryBreakdown } from './SalaryBreakdown';
 import { SalaryRegister } from './SalaryRegister';
 import { PaySlipGenerator } from './PaySlipGenerator';
@@ -9,17 +13,73 @@ import { SalaryTrends } from './SalaryTrends';
 import { TaxCalculator } from './TaxCalculator';
 import { ComplianceReports } from './ComplianceReports';
 import { SalaryComponentConfig } from './SalaryComponentConfig';
+import { useToastStore } from '../../stores/toastStore';
 
 export const SalaryManagement = () => {
   const [activeTab, setActiveTab] = useState('breakdown');
   const [employees, setEmployees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('January');
   const [selectedYear, setSelectedYear] = useState(2026);
+  const [isLoading, setIsLoading] = useState(false);
+  const showToast = useToastStore(state => state.addToast);
+
+  const loadSalaryData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Get active month
+      const activeMonth = await MonthService.getActiveMonth();
+      if (!activeMonth) {
+        showToast('No active month found', 'warning');
+        setIsLoading(false);
+        return;
+      }
+
+      // Get all employees
+      const employeesData = await EmployeeService.getAllEmployees();
+      
+      // Get attendance for each employee
+      const attendanceRecords = await AttendanceService.getAllAttendanceForMonth(activeMonth.$id);
+      
+      // Get salary configs
+      const salaryConfigs = await SalaryConfigService.getAllSalaryConfigs();
+      
+      // Combine data and calculate salaries
+      const enrichedEmployees = employeesData.map(emp => {
+        const attendance = attendanceRecords.find(a => a.employeeId === emp.empId);
+        const salaryConfig = salaryConfigs.find(s => s.employeeId === emp.empId);
+        
+        const attendanceArray = attendance?.attendance || [];
+        const calculated = calculateSalary(emp, attendanceArray);
+        
+        return {
+          ...emp,
+          attendance: attendanceArray,
+          presentDays: attendance?.presentDays || 0,
+          paidHoliday: attendance?.paidHoliday || 0,
+          weekOff: attendance?.weekOff || 0,
+          onDuty: attendance?.onDuty || 0,
+          casualLeave: attendance?.casualLeave || 0,
+          lossOfPay: attendance?.lossOfPay || 0,
+          payableDays: attendance?.payableDays || 0,
+          bonus: salaryConfig?.bonus || 0,
+          otherAllowance: salaryConfig?.otherAllowance || 0,
+          ot: salaryConfig?.ot || 0,
+          otherDeduction: salaryConfig?.otherDeduction || 0,
+          ...calculated
+        };
+      });
+      
+      setEmployees(enrichedEmployees);
+    } catch (error) {
+      showToast('Failed to load salary data: ' + error.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
 
   useEffect(() => {
-    const data = loadFromLocalStorage();
-    if (data?.employees) setEmployees(data.employees);
-  }, []);
+    loadSalaryData();
+  }, [loadSalaryData]);
 
   const tabs = [
     { id: 'breakdown', label: 'Salary Breakdown', icon: Calculator },
@@ -41,6 +101,14 @@ export const SalaryManagement = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 p-6">
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-neutral-800 rounded-lg p-6 shadow-xl">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+            <p className="mt-2 text-gray-600 dark:text-neutral-400">Loading salary data...</p>
+          </div>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -49,7 +117,9 @@ export const SalaryManagement = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Salary Management</h1>
-            <p className="text-gray-600 dark:text-neutral-400 mt-1">Complete salary processing and reporting</p>
+            <p className="text-gray-600 dark:text-neutral-400 mt-1">
+              {isLoading ? 'Loading...' : `Complete salary processing for ${employees.length} employees`}
+            </p>
           </div>
           <div className="flex gap-3">
             <select

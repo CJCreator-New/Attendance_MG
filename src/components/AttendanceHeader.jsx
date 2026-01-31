@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Download, Save, Upload, UserPlus, BarChart3, Printer } from 'lucide-react';
 import { SearchFilter } from './SearchFilter';
 import { BulkOperations } from './BulkOperations';
@@ -26,12 +26,17 @@ export const AttendanceHeader = ({
   days,
   fileInputRef
 }) => {
+  // Memoize file input click handler
+  const handleFileInputClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, [fileInputRef]);
+
   return (
     <div className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
       <div className="px-4 md:px-6 py-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">SALARY FOR THE MONTH OF {month}</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">ATTENDANCE FOR THE MONTH OF {month}</h1>
             <p className="text-sm text-gray-600 mt-1">{filteredCount} of {employeeCount} Employees</p>
           </div>
           <div className="flex flex-wrap gap-3 no-print">
@@ -97,7 +102,7 @@ export const AttendanceHeader = ({
                 className="hidden"
               />
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleFileInputClick}
                 className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center gap-2 text-sm"
                 aria-label="Import Excel file"
               >

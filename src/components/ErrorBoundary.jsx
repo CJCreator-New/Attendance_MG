@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -19,6 +19,10 @@ export class ErrorBoundary extends React.Component {
 
   handleReset = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
+  handleReload = () => {
+    window.location.reload();
   };
 
   render() {
@@ -46,7 +50,7 @@ export class ErrorBoundary extends React.Component {
                 Try Again
               </button>
               <button
-                onClick={() => window.location.reload()}
+                onClick={this.handleReload}
                 className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
               >
                 Reload Page

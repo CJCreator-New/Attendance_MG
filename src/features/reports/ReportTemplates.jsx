@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Download, Edit2, Trash2, Copy, Star } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export const ReportTemplates = ({ employees }) => {
   const [templates, setTemplates] = useState([
@@ -26,19 +26,47 @@ export const ReportTemplates = ({ employees }) => {
     totalDeduction: 'Total Deductions'
   };
 
-  const generateFromTemplate = (template) => {
-    const data = employees.map(emp => {
+  const generateFromTemplate = async (template) => {
+    // Validate template to prevent path traversal
+    const safeName = template.name.replace(/[^a-zA-Z0-9_\- ]/g, '_');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(safeName.substring(0, 31)); // Excel sheet name limit
+
+    // Define columns based on template fields
+    worksheet.columns = template.fields.map(field => ({
+      header: fieldLabels[field] || field,
+      key: field,
+      width: 15
+    }));
+
+    // Add data rows
+    employees.forEach(emp => {
       const row = {};
       template.fields.forEach(field => {
-        row[fieldLabels[field]] = emp[field] || 0;
+        row[field] = emp[field] || 0;
       });
-      return row;
+      worksheet.addRow(row);
     });
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, template.name);
-    XLSX.writeFile(wb, `${template.name}.xlsx`);
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeName}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast('Report generated from template', 'success');
   };
 

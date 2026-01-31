@@ -135,8 +135,9 @@ const ManualSetup = ({ onComplete, onBack }) => {
       <div className="space-y-4">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Month</label>
-            <select value={month} onChange={(e) => setMonth(e.target.value)} className="w-full border rounded-lg px-3 py-2">
+            {/* eslint-disable-next-line react/jsx-no-literals */}
+            <label htmlFor="month-select" className="block text-sm font-medium mb-1">Month</label>
+            <select id="month-select" value={month} onChange={(e) => setMonth(e.target.value)} className="w-full border rounded-lg px-3 py-2">
               <option value="">Select Month</option>
               {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
                 <option key={m} value={m}>{m}</option>
@@ -144,8 +145,9 @@ const ManualSetup = ({ onComplete, onBack }) => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Year</label>
-            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
+            {/* eslint-disable-next-line react/jsx-no-literals */}
+            <label htmlFor="year-input" className="block text-sm font-medium mb-1">Year</label>
+            <input id="year-input" type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
           </div>
         </div>
 
@@ -200,16 +202,17 @@ const ImportSetup = ({ onComplete, onBack }) => {
 
     try {
       const ext = file.name.split('.').pop().toLowerCase();
-      
+
       if (ext === 'csv') {
         const text = await file.text();
         const data = parseCSV(text);
         onComplete(data);
       } else {
-        const XLSX = await import('xlsx');
+        const ExcelJS = await import('exceljs');
         const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer);
-        const data = parseExcel(workbook, XLSX);
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
+        const data = parseExcel(workbook);
         onComplete(data);
       }
     } catch (err) {
@@ -266,44 +269,54 @@ const ImportSetup = ({ onComplete, onBack }) => {
     return { month, dates, days, employees };
   };
 
-  const parseExcel = (workbook, XLSX) => {
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+  const parseExcel = (workbook) => {
+    const worksheet = workbook.worksheets[0];
 
-    const month = jsonData[0]?.[0] || 'Unknown';
+    // Get month from first cell
+    const month = worksheet.getCell(1, 1).value || 'Unknown';
     const daysInMonth = 31;
     const dates = Array.from({ length: daysInMonth }, (_, i) => new Date(2026, 0, i + 1));
     const days = dates.map(d => d.toLocaleDateString('en-US', { weekday: 'short' }));
 
-    const employees = jsonData.slice(1).filter(row => row[1]).map((row, idx) => ({
-      sno: idx + 1,
-      empId: row[1] || '',
-      name: row[2] || '',
-      gross: parseFloat(row[3]) || 0,
-      openingCL: parseFloat(row[4]) || 8,
-      attendance: row.slice(5, 36).map(a => a || ''),
-      presentDays: 0,
-      paidHoliday: 0,
-      weekOff: 0,
-      onDuty: 0,
-      casualLeave: 0,
-      lossOfPay: 0,
-      payableDays: 0,
-      earnedGross: 0,
-      basic: 0,
-      da: 0,
-      hra: 0,
-      bonus: 0,
-      otherAllowance: 0,
-      ot: 0,
-      totalEarnings: 0,
-      epf: 0,
-      esi: 0,
-      profTax: 0,
-      otherDeduction: 0,
-      totalDeduction: 0,
-      netSalary: 0
-    }));
+    const employees = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber > 1 && row.getCell(2).value) { // Skip header row and check empId exists
+        const rowValues = [];
+        row.eachCell((cell) => {
+          rowValues.push(cell.value || '');
+        });
+
+        employees.push({
+          sno: employees.length + 1,
+          empId: rowValues[1] || '',
+          name: rowValues[2] || '',
+          gross: parseFloat(rowValues[3]) || 0,
+          openingCL: parseFloat(rowValues[4]) || 8,
+          attendance: rowValues.slice(5, 36).map(a => a || ''),
+          presentDays: 0,
+          paidHoliday: 0,
+          weekOff: 0,
+          onDuty: 0,
+          casualLeave: 0,
+          lossOfPay: 0,
+          payableDays: 0,
+          earnedGross: 0,
+          basic: 0,
+          da: 0,
+          hra: 0,
+          bonus: 0,
+          otherAllowance: 0,
+          ot: 0,
+          totalEarnings: 0,
+          epf: 0,
+          esi: 0,
+          profTax: 0,
+          otherDeduction: 0,
+          totalDeduction: 0,
+          netSalary: 0
+        });
+      }
+    });
 
     return { month, dates, days, employees };
   };
@@ -317,7 +330,9 @@ const ImportSetup = ({ onComplete, onBack }) => {
           <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" id="file-upload" />
           <label htmlFor="file-upload" className="cursor-pointer">
+            {/* eslint-disable-next-line react/jsx-no-literals */}
             <span className="text-blue-600 hover:text-blue-800 font-semibold">Choose file</span>
+            {/* eslint-disable-next-line react/jsx-no-literals */}
             <span className="text-gray-600"> or drag and drop</span>
           </label>
           <p className="text-sm text-gray-500 mt-2">Excel (.xlsx, .xls) or CSV (.csv)</p>

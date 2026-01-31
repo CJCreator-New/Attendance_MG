@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import DOMPurify from 'dompurify';
 import { excelSerialToDate } from './dateUtils';
 import { EXCEL_CONSTANTS } from '../constants';
 
@@ -19,7 +20,20 @@ export const parseAttendanceExcel = (file) => {
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        
+        // Check for corrupted file
+        if (!data || data.length === 0) {
+          reject(new Error('File is empty or corrupted'));
+          return;
+        }
+        
+        let workbook;
+        try {
+          workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        } catch (xlsxError) {
+          reject(new Error('File is corrupted or not a valid Excel file'));
+          return;
+        }
         
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           reject(new Error('Excel file is empty'));
@@ -35,6 +49,9 @@ export const parseAttendanceExcel = (file) => {
         }
 
         const month = jsonData[0]?.[0]?.replace('SALARY FOR THE  MONTH OF ', '') || 'Unknown';
+
+        // Sanitize month string to prevent XSS
+        const sanitizedMonth = DOMPurify.sanitize(month, { ALLOWED_TAGS: [] });
 
         const dateRow = jsonData[1];
         if (!dateRow) {
@@ -78,10 +95,10 @@ export const parseAttendanceExcel = (file) => {
 
             employees.push({
               sno: row[0],
-              empId: row[1],
-              epfNo: row[2] || '',
-              esiNo: row[3] || '',
-              name: row[4],
+              empId: DOMPurify.sanitize(String(row[1] || ''), { ALLOWED_TAGS: [] }),
+              epfNo: DOMPurify.sanitize(String(row[2] || ''), { ALLOWED_TAGS: [] }),
+              esiNo: DOMPurify.sanitize(String(row[3] || ''), { ALLOWED_TAGS: [] }),
+              name: DOMPurify.sanitize(String(row[4] || ''), { ALLOWED_TAGS: [] }),
               gross: parseFloat(row[5]) || 0,
               openingCL: parseFloat(row[EXCEL_CONSTANTS.OPENING_CL_COLUMN]) || 8,
               presentDays: parseFloat(row[6]) || 0,
@@ -118,13 +135,18 @@ export const parseAttendanceExcel = (file) => {
           return;
         }
 
-        resolve({ month, dates, days, employees });
+        resolve({ month: sanitizedMonth, dates, days, employees });
       } catch (error) {
         reject(new Error(`Failed to parse Excel: ${error.message}`));
       }
     };
 
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsArrayBuffer(file);
+    reader.onerror = () => reject(new Error('Failed to read file. Please check file permissions.'));
+    
+    try {
+      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      reject(new Error('Unable to read file. Browser may not support this operation.'));
+    }
   });
 };

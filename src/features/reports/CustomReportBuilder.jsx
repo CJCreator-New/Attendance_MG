@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Trash2, Download, Eye } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export const CustomReportBuilder = ({ employees }) => {
   const [selectedFields, setSelectedFields] = useState(['empId', 'name']);
@@ -31,20 +31,47 @@ export const CustomReportBuilder = ({ employees }) => {
     );
   };
 
-  const generateReport = () => {
-    const data = employees.map(emp => {
-      const row = {};
-      selectedFields.forEach(field => {
-        const fieldDef = availableFields.find(f => f.id === field);
-        row[fieldDef.label] = emp[field] || 0;
-      });
-      return row;
+  const generateReport = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(reportName);
+
+    // Define columns based on selected fields
+    worksheet.columns = selectedFields.map(field => {
+      const fieldDef = availableFields.find(f => f.id === field);
+      return {
+        header: fieldDef?.label || field,
+        key: field,
+        width: 15
+      };
     });
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, reportName);
-    XLSX.writeFile(wb, `${reportName}.xlsx`);
+    // Add data rows
+    employees.forEach(emp => {
+      const row = {};
+      selectedFields.forEach(field => {
+        row[field] = emp[field] || 0;
+      });
+      worksheet.addRow(row);
+    });
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${reportName}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast('Custom report generated', 'success');
   };
 

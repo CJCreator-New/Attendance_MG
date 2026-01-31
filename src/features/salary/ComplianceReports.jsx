@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Download, FileText, CheckCircle } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export const ComplianceReports = ({ employees, month, year }) => {
   const showToast = useToastStore(state => state.addToast);
@@ -14,49 +14,97 @@ export const ComplianceReports = ({ employees, month, year }) => {
   const totalESI = esiEmployees.reduce((sum, e) => sum + (e.esi || 0), 0);
   const totalPT = ptEmployees.reduce((sum, e) => sum + (e.profTax || 0), 0);
 
-  const exportReport = (type) => {
-    let data = [];
+  const exportReport = async (type) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(type.toUpperCase());
     let filename = '';
 
     if (type === 'epf') {
-      data = epfEmployees.map(e => ({
-        'Employee ID': e.empId,
-        'Name': e.name,
-        'UAN': e.epfNo || 'N/A',
-        'Gross Salary': e.gross,
-        'EPF Wages': Math.min((e.basic || 0) + (e.da || 0), 15000),
-        'EE Share (12%)': e.epf || 0,
-        'ER Share (12%)': e.epf || 0,
-        'Total EPF': (e.epf || 0) * 2
-      }));
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'UAN', key: 'uan', width: 20 },
+        { header: 'Gross Salary', key: 'gross', width: 15 },
+        { header: 'EPF Wages', key: 'epfWages', width: 15 },
+        { header: 'EE Share (12%)', key: 'eeShare', width: 15 },
+        { header: 'ER Share (12%)', key: 'erShare', width: 15 },
+        { header: 'Total EPF', key: 'totalEpf', width: 15 }
+      ];
+      epfEmployees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          uan: e.epfNo || 'N/A',
+          gross: e.gross,
+          epfWages: Math.min((e.basic || 0) + (e.da || 0), 15000),
+          eeShare: e.epf || 0,
+          erShare: e.epf || 0,
+          totalEpf: (e.epf || 0) * 2
+        });
+      });
       filename = `EPF_Report_${month}_${year}.xlsx`;
     } else if (type === 'esi') {
-      data = esiEmployees.map(e => ({
-        'Employee ID': e.empId,
-        'Name': e.name,
-        'ESI No': e.esiNo || 'N/A',
-        'Gross Salary': e.gross,
-        'ESI Wages': e.earnedGross || 0,
-        'EE Share (0.75%)': e.esi || 0,
-        'ER Share (3.25%)': (e.esi || 0) * 4.33,
-        'Total ESI': (e.esi || 0) * 5.33
-      }));
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'ESI No', key: 'esiNo', width: 20 },
+        { header: 'Gross Salary', key: 'gross', width: 15 },
+        { header: 'ESI Wages', key: 'esiWages', width: 15 },
+        { header: 'EE Share (0.75%)', key: 'eeShare', width: 18 },
+        { header: 'ER Share (3.25%)', key: 'erShare', width: 18 },
+        { header: 'Total ESI', key: 'totalEsi', width: 15 }
+      ];
+      esiEmployees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          esiNo: e.esiNo || 'N/A',
+          gross: e.gross,
+          esiWages: e.earnedGross || 0,
+          eeShare: e.esi || 0,
+          erShare: (e.esi || 0) * 4.33,
+          totalEsi: (e.esi || 0) * 5.33
+        });
+      });
       filename = `ESI_Report_${month}_${year}.xlsx`;
     } else if (type === 'pt') {
-      data = ptEmployees.map(e => ({
-        'Employee ID': e.empId,
-        'Name': e.name,
-        'Gross Salary': e.gross,
-        'Earned Gross': e.earnedGross || 0,
-        'Professional Tax': e.profTax || 0
-      }));
+      worksheet.columns = [
+        { header: 'Employee ID', key: 'empId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Gross Salary', key: 'gross', width: 15 },
+        { header: 'Earned Gross', key: 'earnedGross', width: 15 },
+        { header: 'Professional Tax', key: 'profTax', width: 18 }
+      ];
+      ptEmployees.forEach(e => {
+        worksheet.addRow({
+          empId: e.empId,
+          name: e.name,
+          gross: e.gross,
+          earnedGross: e.earnedGross || 0,
+          profTax: e.profTax || 0
+        });
+      });
       filename = `PT_Report_${month}_${year}.xlsx`;
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, type.toUpperCase());
-    XLSX.writeFile(wb, filename);
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast(`${type.toUpperCase()} report downloaded`, 'success');
   };
 

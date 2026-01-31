@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../features/auth/AuthContext';
-import { LayoutDashboard, Calendar, Umbrella, DollarSign, Users, FileText, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Calendar, Umbrella, DollarSign, Users, FileText, Settings, LogOut, Building2, MapPin, Clock, GitBranch } from 'lucide-react';
 import { ThemeToggle } from '../features/settings/ThemeToggle';
 import { pageVariants } from '../animations/variants';
 
@@ -17,6 +17,10 @@ export const MainLayout = () => {
     { id: 'salary', label: 'Salary', icon: DollarSign, path: '/salary', permission: 'canProcessPayroll' },
     { id: 'employees', label: 'Employees', icon: Users, path: '/employees', permission: 'canManageEmployees' },
     { id: 'reports', label: 'Reports', icon: FileText, path: '/reports' },
+    { id: 'tenants', label: 'Tenants', icon: Building2, path: '/tenants', permission: 'canManageSettings' },
+    { id: 'branches', label: 'Branches', icon: MapPin, path: '/branches', permission: 'canManageSettings' },
+    { id: 'shifts', label: 'Shifts', icon: Clock, path: '/shifts', permission: 'canManageSettings' },
+    { id: 'workflows', label: 'Workflows', icon: GitBranch, path: '/workflows', permission: 'canManageSettings' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/settings', permission: 'canManageSettings' }
   ];
 

@@ -1,73 +1,93 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { AuthService } from '../../services/authService';
+import { sessionManager } from '../../utils/sessionManager';
+import { AuditService } from '../../services/auditService';
 
 const AuthContext = createContext(null);
+
+const DEFAULT_PERMISSIONS = {
+  canMarkAttendance: true,
+  canProcessPayroll: true,
+  canManageEmployees: true,
+  canViewReports: true,
+  canApproveLeaves: true,
+  canManageSettings: true
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('auth_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
-    }
+    checkAuth();
   }, []);
 
-  const login = (username, password) => {
-    const users = {
-      'manager@company.com': {
-        id: 'user_001',
-        username: 'manager@company.com',
-        role: 'Manager',
-        name: 'John Manager',
-        companyId: 'company_001',
-        branchId: 'branch_001',
-        permissions: {
-          canMarkAttendance: true,
-          canProcessPayroll: false,
-          canManageEmployees: false,
-          canViewReports: true,
-          canApproveLeaves: true,
-          canManageSettings: false
-        }
-      },
-      'hr@company.com': {
-        id: 'user_002',
-        username: 'hr@company.com',
-        role: 'HR',
-        name: 'Jane HR',
-        companyId: 'company_001',
-        branchId: 'branch_001',
-        permissions: {
-          canMarkAttendance: true,
-          canProcessPayroll: true,
-          canManageEmployees: true,
-          canViewReports: true,
-          canApproveLeaves: true,
-          canManageSettings: true
-        }
-      }
-    };
-
-    const foundUser = users[username];
-    if (foundUser && password === 'demo123') {
-      setUser(foundUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('auth_user', JSON.stringify(foundUser));
-      return { success: true };
+  useEffect(() => {
+    if (isAuthenticated) {
+      sessionManager.start(() => {
+        logout();
+        alert('Session expired due to inactivity');
+      });
     }
-    return { success: false, error: 'Invalid credentials' };
+    return () => sessionManager.stop();
+  }, [isAuthenticated]);
+
+  const checkAuth = async () => {
+    try {
+      const currentUser = await AuthService.getCurrentUser();
+      if (currentUser) {
+        setUser({
+          id: currentUser.$id,
+          email: currentUser.email,
+          name: currentUser.name,
+          role: currentUser.prefs?.role || 'Manager',
+          permissions: currentUser.prefs?.permissions || DEFAULT_PERMISSIONS
+        });
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('auth_user');
+  const login = async (email, password) => {
+    try {
+      await AuthService.login(email, password);
+      await checkAuth();
+      await AuditService.logLogin(user?.id || 'unknown');
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message || 'Login failed' };
+    }
+  };
+
+  const signup = async (email, password, name) => {
+    try {
+      await AuthService.createAccount(email, password, name);
+      await login(email, password);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message || 'Signup failed' };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await AuditService.logLogout(user?.id || 'unknown');
+      await AuthService.logout();
+      setUser(null);
+      setIsAuthenticated(false);
+      sessionManager.stop();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

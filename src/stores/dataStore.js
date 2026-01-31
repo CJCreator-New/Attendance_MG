@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { SALARY_CONSTANTS } from '../constants';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { calculateAttendanceSummary, calculateSalary } from '../utils/salaryCalculator';
+import { createBackup } from '../utils/storage';
+
+let updateLock = false;
 
 export const useDataStore = create((set, get) => ({
   employees: [],
@@ -30,6 +33,9 @@ export const useDataStore = create((set, get) => ({
   },
   
   updateAttendance: (empId, dateIndex, value) => {
+    if (updateLock) return;
+    updateLock = true;
+    
     set(state => {
       const employees = state.employees.map(emp => {
         if (emp.empId === empId) {
@@ -38,7 +44,7 @@ export const useDataStore = create((set, get) => ({
           const calculated = calculateSalary(emp, newAttendance);
           return { ...emp, attendance: newAttendance, ...calculated };
         }
-        return emp;
+        return { ...emp };
       });
       
       const salaryRecords = employees.map(emp => ({
@@ -48,12 +54,16 @@ export const useDataStore = create((set, get) => ({
         ...calculateSalary(emp, emp.attendance)
       }));
       
+      updateLock = false;
       return { employees, salaryRecords };
     });
     get().persistData();
   },
   
   bulkUpdateAttendance: (employeeIds, dateIndices, status) => {
+    if (updateLock) return;
+    updateLock = true;
+    
     set(state => {
       const employees = state.employees.map(emp => {
         if (employeeIds.length === 0 || employeeIds.includes(emp.empId)) {
@@ -62,7 +72,7 @@ export const useDataStore = create((set, get) => ({
           const calculated = calculateSalary(emp, newAttendance);
           return { ...emp, attendance: newAttendance, ...calculated };
         }
-        return emp;
+        return { ...emp };
       });
       
       const salaryRecords = employees.map(emp => ({
@@ -72,6 +82,7 @@ export const useDataStore = create((set, get) => ({
         ...calculateSalary(emp, emp.attendance)
       }));
       
+      updateLock = false;
       return { employees, salaryRecords };
     });
     get().persistData();
@@ -121,7 +132,16 @@ export const useDataStore = create((set, get) => ({
   persistData: () => {
     try {
       const { employees, leaveApplications, salaryRecords } = get();
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_DATA, JSON.stringify({ employees }));
+      const data = { employees, version: 2 };
+      
+      // Auto backup every 10 saves
+      const saveCount = parseInt(localStorage.getItem('saveCount') || '0');
+      if (saveCount % 10 === 0) {
+        createBackup(data);
+      }
+      localStorage.setItem('saveCount', (saveCount + 1).toString());
+      
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_DATA, JSON.stringify(data));
       localStorage.setItem(STORAGE_KEYS.LEAVE_APPLICATIONS, JSON.stringify(leaveApplications));
       localStorage.setItem(STORAGE_KEYS.SALARY_RECORDS, JSON.stringify(salaryRecords));
     } catch (error) {

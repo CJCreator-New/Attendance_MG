@@ -1,12 +1,15 @@
 import { create } from 'zustand';
+import DOMPurify from 'dompurify';
 
 export const useToastStore = create((set) => ({
   toasts: [],
   
   addToast: (message, type = 'info', duration = 3000) => {
     const id = Date.now();
+    // Sanitize message to prevent XSS
+    const sanitizedMessage = typeof message === 'string' ? DOMPurify.sanitize(message, { ALLOWED_TAGS: [] }) : String(message);
     set((state) => ({
-      toasts: [...state.toasts, { id, message, type, duration }]
+      toasts: [...state.toasts, { id, message: sanitizedMessage, type, duration }]
     }));
     
     if (duration > 0) {

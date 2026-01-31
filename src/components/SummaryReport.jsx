@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, TrendingUp, Users, DollarSign } from 'lucide-react';
+import { X, TrendingUp, Users } from 'lucide-react';
 
 export const SummaryReport = ({ employees, onClose }) => {
   useEffect(() => {
@@ -10,18 +10,8 @@ export const SummaryReport = ({ employees, onClose }) => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
   const totalEmployees = employees.length;
-  const totalGross = employees.reduce((sum, emp) => sum + emp.gross, 0);
-  const totalNetSalary = employees.reduce((sum, emp) => sum + emp.netSalary, 0);
   const avgAttendance = employees.reduce((sum, emp) => sum + emp.presentDays, 0) / totalEmployees;
   const totalAbsent = employees.reduce((sum, emp) => sum + emp.lossOfPay, 0);
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="summary-title">
@@ -52,18 +42,18 @@ export const SummaryReport = ({ employees, onClose }) => {
 
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-5 h-5 text-purple-600" />
-              <span className="text-sm text-gray-600">Total Gross Salary</span>
+              <TrendingUp className="w-5 h-5 text-purple-600" />
+              <span className="text-sm text-gray-600">Total Present Days</span>
             </div>
-            <p className="text-2xl font-bold text-purple-600">{formatCurrency(totalGross)}</p>
+            <p className="text-2xl font-bold text-purple-600">{employees.reduce((sum, emp) => sum + emp.presentDays, 0)}</p>
           </div>
 
           <div className="bg-orange-50 p-4 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-5 h-5 text-orange-600" />
-              <span className="text-sm text-gray-600">Total Net Salary</span>
+              <TrendingUp className="w-5 h-5 text-orange-600" />
+              <span className="text-sm text-gray-600">Total Payable Days</span>
             </div>
-            <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalNetSalary)}</p>
+            <p className="text-2xl font-bold text-orange-600">{employees.reduce((sum, emp) => sum + emp.payableDays, 0)}</p>
           </div>
         </div>
 

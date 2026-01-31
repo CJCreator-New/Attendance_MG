@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { downloadPaySlip } from './payslipPDF';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { useToastStore } from '../../stores/toastStore';
 
 export const SalaryRegister = ({ employees, month, year }) => {
@@ -19,21 +19,54 @@ export const SalaryRegister = ({ employees, month, year }) => {
     showToast('Pay slip downloaded', 'success');
   };
 
-  const exportToExcel = () => {
-    const data = employees.map((emp, idx) => ({
-      'S.No': idx + 1,
-      'Emp ID': emp.empId,
-      'Name': emp.name,
-      'Payable Days': emp.payableDays || 0,
-      'Gross': emp.gross,
-      'Earnings': emp.totalEarnings || 0,
-      'Deductions': emp.totalDeduction || 0,
-      'Net Salary': emp.netSalary || 0
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Salary Register');
-    XLSX.writeFile(wb, `Salary_Register_${month}_${year}.xlsx`);
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Salary Register');
+
+    // Add headers
+    worksheet.columns = [
+      { header: 'S.No', key: 'sno', width: 8 },
+      { header: 'Emp ID', key: 'empId', width: 15 },
+      { header: 'Name', key: 'name', width: 25 },
+      { header: 'Payable Days', key: 'payableDays', width: 14 },
+      { header: 'Gross', key: 'gross', width: 15 },
+      { header: 'Earnings', key: 'earnings', width: 15 },
+      { header: 'Deductions', key: 'deductions', width: 15 },
+      { header: 'Net Salary', key: 'netSalary', width: 15 }
+    ];
+
+    // Add data rows
+    employees.forEach((emp, idx) => {
+      worksheet.addRow({
+        sno: idx + 1,
+        empId: emp.empId,
+        name: emp.name,
+        payableDays: emp.payableDays || 0,
+        gross: emp.gross,
+        earnings: emp.totalEarnings || 0,
+        deductions: emp.totalDeduction || 0,
+        netSalary: emp.netSalary || 0
+      });
+    });
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Salary_Register_${month}_${year}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast('Salary register exported', 'success');
   };
 

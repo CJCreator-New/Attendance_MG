@@ -54,14 +54,6 @@ export const MobileAttendanceView = ({
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="text-gray-600">Gross:</span>
-                <span className="font-semibold ml-1">{formatCurrency(emp.gross)}</span>
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="text-gray-600">Net:</span>
-                <span className="font-semibold ml-1">{formatCurrency(emp.netSalary)}</span>
-              </div>
               <div className="bg-emerald-50 p-2 rounded">
                 <span className="text-gray-600">Present:</span>
                 <span className="font-semibold ml-1">{emp.presentDays}</span>
@@ -69,6 +61,14 @@ export const MobileAttendanceView = ({
               <div className="bg-rose-50 p-2 rounded">
                 <span className="text-gray-600">Absent:</span>
                 <span className="font-semibold ml-1">{emp.lossOfPay}</span>
+              </div>
+              <div className="bg-amber-50 p-2 rounded">
+                <span className="text-gray-600">CL:</span>
+                <span className="font-semibold ml-1">{emp.casualLeave}</span>
+              </div>
+              <div className="bg-blue-50 p-2 rounded">
+                <span className="text-gray-600">Payable:</span>
+                <span className="font-semibold ml-1">{emp.payableDays}</span>
               </div>
             </div>
 

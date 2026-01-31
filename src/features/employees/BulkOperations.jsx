@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Upload, Download, Trash2, Edit2, CheckSquare } from 'lucide-react';
 import { saveToLocalStorage } from '../../utils/storage';
 import { useToastStore } from '../../stores/toastStore';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export const BulkOperations = ({ employees, setEmployees }) => {
   const [selectedIds, setSelectedIds] = useState([]);
@@ -11,7 +11,7 @@ export const BulkOperations = ({ employees, setEmployees }) => {
   const showToast = useToastStore(state => state.addToast);
 
   const toggleSelect = (empId) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId]
     );
   };
@@ -35,8 +35,8 @@ export const BulkOperations = ({ employees, setEmployees }) => {
     if (!field) return;
     const value = prompt(`New ${field}:`);
     if (!value) return;
-    
-    const updated = employees.map(e => 
+
+    const updated = employees.map(e =>
       selectedIds.includes(e.empId) ? { ...e, [field]: value } : e
     );
     setEmployees(updated);
@@ -45,21 +45,53 @@ export const BulkOperations = ({ employees, setEmployees }) => {
     setSelectedIds([]);
   };
 
-  const handleBulkExport = () => {
+  const handleBulkExport = async () => {
     const selected = employees.filter(e => selectedIds.includes(e.empId));
-    const data = selected.map(e => ({
-      'Employee ID': e.empId,
-      'Name': e.name,
-      'Department': e.department || 'General',
-      'Designation': e.designation || 'Employee',
-      'Gross Salary': e.gross,
-      'Email': e.email || '',
-      'Phone': e.phone || ''
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Selected Employees');
-    XLSX.writeFile(wb, 'Selected_Employees.xlsx');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Selected Employees');
+
+    // Define columns
+    worksheet.columns = [
+      { header: 'Employee ID', key: 'empId', width: 15 },
+      { header: 'Name', key: 'name', width: 25 },
+      { header: 'Department', key: 'department', width: 15 },
+      { header: 'Designation', key: 'designation', width: 15 },
+      { header: 'Gross Salary', key: 'gross', width: 15 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Phone', key: 'phone', width: 15 }
+    ];
+
+    // Add data rows
+    selected.forEach(e => {
+      worksheet.addRow({
+        empId: e.empId,
+        name: e.name,
+        department: e.department || 'General',
+        designation: e.designation || 'Employee',
+        gross: e.gross,
+        email: e.email || '',
+        phone: e.phone || ''
+      });
+    });
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Selected_Employees.xlsx';
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast(`${selectedIds.length} employees exported`, 'success');
   };
 

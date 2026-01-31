@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Upload, Download, Trash2, Eye, Search } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
+import { StorageService } from '../../services/storageService';
+import { FileUpload } from '../../components/FileUpload';
+import { FilePreview } from '../../components/FilePreview';
 
 export const DocumentManager = ({ employees }) => {
   const [selectedEmp, setSelectedEmp] = useState(employees[0]?.empId || '');
   const [documents, setDocuments] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const showToast = useToastStore(state => state.addToast);
 
   const emp = employees.find(e => e.empId === selectedEmp);
@@ -19,32 +23,37 @@ export const DocumentManager = ({ employees }) => {
     { id: 'other', label: 'Other Documents', icon: FileText }
   ];
 
-  const handleUpload = (type) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png';
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const newDoc = {
-          id: Date.now(),
-          empId: selectedEmp,
-          type,
-          name: file.name,
-          size: (file.size / 1024).toFixed(2) + ' KB',
-          uploadDate: new Date().toLocaleDateString()
-        };
-        setDocuments([...documents, newDoc]);
-        showToast('Document uploaded', 'success');
-      }
-    };
-    input.click();
+  const handleUpload = async (file, type) => {
+    setUploading(true);
+    const result = await StorageService.uploadFile(file, type);
+    
+    if (result.success) {
+      const newDoc = {
+        id: result.fileId,
+        empId: selectedEmp,
+        type,
+        name: file.name,
+        size: file.size,
+        url: result.url,
+        uploadDate: new Date().toLocaleDateString()
+      };
+      setDocuments([...documents, newDoc]);
+      showToast('Document uploaded successfully', 'success');
+    } else {
+      showToast('Upload failed: ' + result.error, 'error');
+    }
+    setUploading(false);
   };
 
-  const handleDelete = (docId) => {
+  const handleDelete = async (docId) => {
     if (confirm('Delete this document?')) {
-      setDocuments(documents.filter(d => d.id !== docId));
-      showToast('Document deleted', 'success');
+      const result = await StorageService.deleteFile(docId);
+      if (result.success) {
+        setDocuments(documents.filter(d => d.id !== docId));
+        showToast('Document deleted', 'success');
+      } else {
+        showToast('Delete failed', 'error');
+      }
     }
   };
 
@@ -87,11 +96,18 @@ export const DocumentManager = ({ employees }) => {
                 </div>
               </div>
               <button
-                onClick={() => handleUpload(type.id)}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png';
+                  input.onchange = (e) => e.target.files[0] && handleUpload(e.target.files[0], type.id);
+                  input.click();
+                }}
+                disabled={uploading}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Upload className="w-4 h-4" />
-                Upload
+                {uploading ? 'Uploading...' : 'Upload'}
               </button>
             </motion.div>
           );

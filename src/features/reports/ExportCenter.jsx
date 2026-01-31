@@ -1,81 +1,123 @@
 import { motion } from 'framer-motion';
 import { Download, FileText, FileSpreadsheet, File } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export const ExportCenter = ({ employees, month, year }) => {
   const showToast = useToastStore(state => state.addToast);
 
-  const exportToExcel = (type) => {
-    let data = [];
+  const exportToExcel = async (type) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Data');
     let filename = '';
 
     switch(type) {
       case 'all':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Department': e.department || 'General',
-          'Gross': e.gross,
-          'Present': e.presentDays || 0,
-          'Absent': e.lossOfPay || 0,
-          'Net Salary': e.netSalary || 0
-        }));
+        worksheet.columns = [
+          { header: 'Employee ID', key: 'empId', width: 15 },
+          { header: 'Name', key: 'name', width: 25 },
+          { header: 'Department', key: 'department', width: 15 },
+          { header: 'Gross', key: 'gross', width: 15 },
+          { header: 'Present', key: 'present', width: 10 },
+          { header: 'Absent', key: 'absent', width: 10 },
+          { header: 'Net Salary', key: 'netSalary', width: 15 }
+        ];
+        employees.forEach(e => {
+          worksheet.addRow({
+            empId: e.empId,
+            name: e.name,
+            department: e.department || 'General',
+            gross: e.gross,
+            present: e.presentDays || 0,
+            absent: e.lossOfPay || 0,
+            netSalary: e.netSalary || 0
+          });
+        });
         filename = `Complete_Data_${month}_${year}`;
         break;
       case 'attendance':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Present': e.presentDays || 0,
-          'Absent': e.lossOfPay || 0,
-          'Leave': e.casualLeave || 0,
-          'Payable': e.payableDays || 0
-        }));
+        worksheet.columns = [
+          { header: 'Employee ID', key: 'empId', width: 15 },
+          { header: 'Name', key: 'name', width: 25 },
+          { header: 'Present', key: 'present', width: 10 },
+          { header: 'Absent', key: 'absent', width: 10 },
+          { header: 'Leave', key: 'leave', width: 10 },
+          { header: 'Payable', key: 'payable', width: 10 }
+        ];
+        employees.forEach(e => {
+          worksheet.addRow({
+            empId: e.empId,
+            name: e.name,
+            present: e.presentDays || 0,
+            absent: e.lossOfPay || 0,
+            leave: e.casualLeave || 0,
+            payable: e.payableDays || 0
+          });
+        });
         filename = `Attendance_${month}_${year}`;
         break;
       case 'salary':
-        data = employees.map(e => ({
-          'Employee ID': e.empId,
-          'Name': e.name,
-          'Gross': e.gross,
-          'Earnings': e.totalEarnings || 0,
-          'Deductions': e.totalDeduction || 0,
-          'Net': e.netSalary || 0
-        }));
+        worksheet.columns = [
+          { header: 'Employee ID', key: 'empId', width: 15 },
+          { header: 'Name', key: 'name', width: 25 },
+          { header: 'Gross', key: 'gross', width: 15 },
+          { header: 'Earnings', key: 'earnings', width: 15 },
+          { header: 'Deductions', key: 'deductions', width: 15 },
+          { header: 'Net', key: 'net', width: 15 }
+        ];
+        employees.forEach(e => {
+          worksheet.addRow({
+            empId: e.empId,
+            name: e.name,
+            gross: e.gross,
+            earnings: e.totalEarnings || 0,
+            deductions: e.totalDeduction || 0,
+            net: e.netSalary || 0
+          });
+        });
         filename = `Salary_${month}_${year}`;
         break;
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.writeFile(wb, `${filename}.xlsx`);
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     showToast('Excel exported', 'success');
   };
 
   const exportToCSV = (type) => {
-    let data = [];
+    let csv = '';
     if (type === 'all') {
-      data = employees.map(e => ({
-        'Employee ID': e.empId,
-        'Name': e.name,
-        'Department': e.department || 'General',
-        'Gross': e.gross,
-        'Net Salary': e.netSalary || 0
-      }));
+      csv = 'Employee ID,Name,Department,Gross,Net Salary\n';
+      employees.forEach(e => {
+        csv += `${e.empId},${e.name},${e.department || 'General'},${e.gross},${e.netSalary || 0}\n`;
+      });
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${type}_${month}_${year}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
     showToast('CSV exported', 'success');
   };
 
