@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"src/**/*.{js,jsx,json,css,md}\"",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
-    "prepare": "node -e \"try { require('husky').install() } catch (e) {}\""
+    "prepare": "node -e \"try { const { execSync } = require('child_process'); execSync('git rev-parse --git-dir', { stdio: 'ignore' }); require('husky').install(); } catch (e) {}\""
   },
   "lint-staged": {
     "*.{js,jsx}": [
