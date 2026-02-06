@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+  --color-border: #e5e7eb;
+  --color-destructive: #ef4444;
+  --radius: 0.5rem;
+}
+
+/* Attendance Table Fixes */
+.attendance-table tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.attendance-table tbody tr:hover {
+  background-color: #f3f4f6;
+}
+
+.attendance-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #2563eb;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.attendance-table thead th {
+  background: #2563eb;
+}
+
+/* Fixed left columns */
+.attendance-table th:nth-child(1),
+.attendance-table th:nth-child(2),
+.attendance-table th:nth-child(3),
+.attendance-table td:nth-child(1),
+.attendance-table td:nth-child(2),
+.attendance-table td:nth-child(3) {
+  position: sticky;
+  background: white;
+  z-index: 20;
+}
+
+.attendance-table th:nth-child(1),
+.attendance-table td:nth-child(1) {
+  left: 0;
+  min-width: 60px;
+}
+
+.attendance-table th:nth-child(2),
+.attendance-table td:nth-child(2) {
+  left: 60px;
+  min-width: 100px;
+}
+
+.attendance-table th:nth-child(3),
+.attendance-table td:nth-child(3) {
+  left: 160px;
+  min-width: 200px;
+  max-width: 250px;
+}
+
+.attendance-table thead th:nth-child(1),
+.attendance-table thead th:nth-child(2),
+.attendance-table thead th:nth-child(3) {
+  z-index: 40;
+  background: #2563eb;
+}
+
+.attendance-table tbody tr:nth-child(even) td:nth-child(1),
+.attendance-table tbody tr:nth-child(even) td:nth-child(2),
+.attendance-table tbody tr:nth-child(even) td:nth-child(3) {
+  background-color: #f9fafb;
+}
+
+.attendance-table tbody tr:hover td:nth-child(1),
+.attendance-table tbody tr:hover td:nth-child(2),
+.attendance-table tbody tr:hover td:nth-child(3) {
+  background-color: #f3f4f6;
+}
+
+/* Column width consistency */
+.attendance-table th,
+.attendance-table td {
+  min-width: 80px;
+  white-space: nowrap;
+}
+
+.attendance-table .date-cell {
+  min-width: 50px;
+  max-width: 50px;
+}
+
+/* Text truncation with ellipsis */
+.truncate-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+/* Negative value styling */
+.negative-value {
+  color: #d97706;
+  font-weight: 600;
+}
+
+/* Scroll shadows */
+.scroll-shadow-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, rgba(229, 231, 235, 0.8), transparent);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.scroll-shadow-right {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to left, rgba(229, 231, 235, 0.8), transparent);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Print styles */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
