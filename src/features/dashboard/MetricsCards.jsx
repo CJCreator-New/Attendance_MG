@@ -5,16 +5,18 @@ import { Card } from '../../components/ui/Card';
 import { itemVariants } from '../../animations/variants';
 
 export const MetricsCards = ({ employees }) => {
-  const totalEmployees = employees.length;
-  const avgAttendance = employees.reduce((sum, emp) => sum + (emp.presentDays || 0), 0) / totalEmployees;
-  const totalLeaveUsed = employees.reduce((sum, emp) => sum + (emp.casualLeave || 0), 0);
-  const totalNetSalary = employees.reduce((sum, emp) => sum + (emp.netSalary || 0), 0);
+  const totalEmployees = employees?.length || 0;
+  const avgAttendance = totalEmployees > 0 
+    ? employees.reduce((sum, emp) => sum + (emp.presentDays || 0), 0) / totalEmployees 
+    : 0;
+  const totalLeaveUsed = employees?.reduce((sum, emp) => sum + (emp.casualLeave || 0), 0) || 0;
+  const totalNetSalary = employees?.reduce((sum, emp) => sum + (emp.netSalary || 0), 0) || 0;
 
   const metrics = [
     { icon: Users, label: 'Total Employees', value: totalEmployees, color: 'blue' },
-    { icon: Calendar, label: 'Avg Attendance', value: avgAttendance.toFixed(1) + ' days', color: 'green' },
-    { icon: Umbrella, label: 'Leave Used', value: totalLeaveUsed.toFixed(1) + ' days', color: 'yellow' },
-    { icon: DollarSign, label: 'Total Payroll', value: '₹' + (totalNetSalary / 1000).toFixed(0) + 'K', color: 'purple' }
+    { icon: Calendar, label: 'Avg Attendance', value: `${avgAttendance.toFixed(1)} days`, color: 'green' },
+    { icon: Umbrella, label: 'Leave Used', value: `${totalLeaveUsed.toFixed(1)} days`, color: 'yellow' },
+    { icon: DollarSign, label: 'Total Payroll', value: totalNetSalary > 0 ? `₹${(totalNetSalary / 1000).toFixed(0)}K` : '₹0', color: 'purple' }
   ];
 
   return (

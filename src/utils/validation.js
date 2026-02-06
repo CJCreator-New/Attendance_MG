@@ -1,3 +1,24 @@
+export const validateAttendanceUpdate = (value, date) => {
+  const validCodes = ['P', 'A', 'CL', 'HCL', 'HP', 'HL', 'WO', 'WW', 'PH', 'pH', 'PHW', 'OD', 'WFH'];
+  if (!validCodes.includes(value)) {
+    return { isValid: false, error: 'Invalid attendance code' };
+  }
+  if (date && new Date(date) > new Date()) {
+    return { isValid: false, error: 'Cannot mark attendance for future dates' };
+  }
+  return { isValid: true };
+};
+
+export const validateEmployeeId = (empId) => {
+  if (!empId || !empId.trim()) {
+    return { isValid: false, error: 'Employee ID is required' };
+  }
+  if (empId.length < 2 || empId.length > 20) {
+    return { isValid: false, error: 'Employee ID must be 2-20 characters' };
+  }
+  return { isValid: true };
+};
+
 export const validators = {
   required: (value, fieldName) => {
     if (!value || (typeof value === 'string' && !value.trim())) {

@@ -13,7 +13,7 @@ export const MainLayout = () => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'attendance', label: 'Attendance', icon: Calendar, path: '/attendance' },
-    { id: 'leave', label: 'Leave Management', icon: Umbrella, path: '/leave' },
+    { id: 'leave', label: 'Leave', icon: Umbrella, path: '/leave' },
     { id: 'salary', label: 'Salary', icon: DollarSign, path: '/salary', permission: 'canProcessPayroll' },
     { id: 'employees', label: 'Employees', icon: Users, path: '/employees', permission: 'canManageEmployees' },
     { id: 'reports', label: 'Reports', icon: FileText, path: '/reports' },
@@ -53,7 +53,7 @@ export const MainLayout = () => {
           </div>
         </div>
 
-        <nav className="px-6 flex gap-1 overflow-x-auto">
+        <nav className="px-6 flex gap-1 overflow-x-auto scrollbar-hide">
           {visibleTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = location.pathname === tab.path;

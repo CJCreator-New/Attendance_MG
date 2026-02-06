@@ -29,11 +29,20 @@ export class LeaveService {
   }
 
   static async getAllLeaves(queries = []) {
-    const response = await AppwriteService.listDocuments(LEAVE_COLLECTION, [
-      Query.orderDesc('appliedDate'),
-      ...queries
-    ]);
-    return response.documents;
+    try {
+      const response = await AppwriteService.listDocuments(LEAVE_COLLECTION, [
+        Query.orderDesc('appliedDate'),
+        ...queries
+      ]);
+      return response.documents;
+    } catch (error) {
+      // If collection doesn't exist, return empty array instead of crashing
+      if (error.message?.includes('Collection with the requested ID')) {
+        console.warn('Leaves collection not found. Returning empty array.');
+        return [];
+      }
+      throw error;
+    }
   }
 
   static async getLeavesByEmployee(employeeId) {

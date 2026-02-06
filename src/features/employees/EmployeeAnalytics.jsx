@@ -23,8 +23,9 @@ export const EmployeeAnalytics = ({ employees }) => {
     if (range) range.count++;
   });
 
-  const avgSalary = employees.reduce((sum, e) => sum + (e.gross || 0), 0) / employees.length || 0;
-  const totalPayroll = employees.reduce((sum, e) => sum + (e.netSalary || 0), 0);
+  const totalEmployees = employees?.length || 0;
+  const avgSalary = totalEmployees > 0 ? employees.reduce((sum, e) => sum + (e.gross || 0), 0) / totalEmployees : 0;
+  const totalPayroll = employees?.reduce((sum, e) => sum + (e.netSalary || e.gross || 0), 0) || 0;
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -32,7 +33,7 @@ export const EmployeeAnalytics = ({ employees }) => {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Employees', value: employees.length, icon: Users, color: 'blue' },
+          { label: 'Total Employees', value: totalEmployees, icon: Users, color: 'blue' },
           { label: 'Departments', value: Object.keys(deptData).length, icon: Briefcase, color: 'green' },
           { label: 'Avg Salary', value: `₹${avgSalary.toFixed(0)}`, icon: DollarSign, color: 'purple' },
           { label: 'Total Payroll', value: `₹${totalPayroll.toLocaleString('en-IN')}`, icon: TrendingUp, color: 'orange' }

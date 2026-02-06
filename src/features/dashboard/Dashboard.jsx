@@ -67,7 +67,12 @@ export const Dashboard = () => {
       });
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
-      showToast('Failed to load dashboard: ' + error.message, 'error');
+      // Check if error is due to missing collection
+      if (error.message?.includes('Collection with the requested ID')) {
+        showToast('Database setup incomplete. Please run setup scripts.', 'warning');
+      } else {
+        showToast('Failed to load dashboard: ' + error.message, 'error');
+      }
       setData({ employees: [], dates: [], days: [], leaves: [] });
     } finally {
       setIsLoading(false);

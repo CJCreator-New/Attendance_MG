@@ -23,18 +23,23 @@ export class MonthService {
   }
 
   static async getActiveMonth() {
-    const response = await AppwriteService.listDocuments(COLLECTIONS.MONTHS, [
-      Query.equal('isActive', true)
-    ]);
-    if (response.documents.length > 0) {
-      const doc = response.documents[0];
-      return {
-        ...doc,
-        dates: JSON.parse(doc.dates),
-        days: JSON.parse(doc.days)
-      };
+    try {
+      const response = await AppwriteService.listDocuments(COLLECTIONS.MONTHS, [
+        Query.equal('isActive', true)
+      ]);
+      if (response.documents.length > 0) {
+        const doc = response.documents[0];
+        return {
+          ...doc,
+          dates: JSON.parse(doc.dates),
+          days: JSON.parse(doc.days)
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching active month:', error);
+      return null;
     }
-    return null;
   }
 
   static async updateMonth(documentId, monthData) {

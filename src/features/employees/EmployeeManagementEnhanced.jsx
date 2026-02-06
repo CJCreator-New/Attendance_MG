@@ -165,7 +165,7 @@ export const EmployeeManagementEnhanced = () => {
             </p>
           </div>
           <div className="flex gap-3">
-            <button onClick={downloadEmployeeTemplate} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+            <button onClick={() => downloadEmployeeTemplate(showToast)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4" />
               Download Template
             </button>

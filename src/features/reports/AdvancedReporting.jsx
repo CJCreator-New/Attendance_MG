@@ -4,7 +4,7 @@ import { FileText, Settings, Calendar, Mail, Download, BarChart3, Layout, Loader
 import { EmployeeService } from '../../services/employeeService';
 import { AttendanceService } from '../../services/attendanceService';
 import { MonthService } from '../../services/monthService';
-import { useToastStore } from '../../store/toastStore';
+import { useToastStore } from '../../stores/toastStore';
 import { ReportTypes } from './ReportTypes';
 import { CustomReportBuilder } from './CustomReportBuilder';
 import { ScheduledReports } from './ScheduledReports';
